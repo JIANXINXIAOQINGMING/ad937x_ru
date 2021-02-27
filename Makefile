@@ -37,7 +37,7 @@ MAKE=make
 
 HOST=arm-linux-gnueabihf
 
-all: init capture
+all: clean init capture
 
 init:
 	mkdir $(OUTPUT_ROOT)

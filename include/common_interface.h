@@ -6,6 +6,9 @@ extern "C"
 {
 #endif
 
+#define DEVMEM_MAP_SIZE 4096
+#define DEVMEM_MAP_MASK (off_t)(DEVMEM_MAP_SIZE - 1)
+
 #define RETURN_SUCCESSFUL       0
 #define ERROR_INPUT             -2
 #define ERROR_DATA_EMPTY        -3
