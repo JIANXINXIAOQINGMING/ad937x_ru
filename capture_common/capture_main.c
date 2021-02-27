@@ -9,7 +9,7 @@
 
 #include "common_interface.h"
 
-#define CAP_VERSION                 2.1
+#define CAP_VERSION                 2.4
 
 #define SIGNAL_CAPTURE_EN           1
 
@@ -28,14 +28,15 @@ static void print_usage(FILE *stream, int exit_code)
     fprintf(stream,
             "\t-h  --help            Display this usage information\n"
             "\t-b  --base addr       input base address\n"
-            "\t-r  --recapture       recapture enable True or False\n"
+            "\t-r  --recapture       recapture enable T or F\n"
             "\t-s  --sample rate     sample rate\n"
             "\t-n  --node            port name\n"
-            "Example:rau_capture -b xxx -r xx -s xxx -n xxx\n");
+            "\t-t  --total           capture total number\n"
+            "Example:rau_capture -b xxx -r xx -s xxx -n xxx -t xx\n");
     exit(exit_code);
 }
 
-int register_handle(FILE *fp, uint32_t addr, uint16_t sample_rate, uint16_t node, short recapture_flag ,uint16_t offset)
+int register_handle(FILE *fp, uint32_t addr, uint16_t sample_rate, uint16_t node, uint32_t total, short recapture_flag ,uint16_t offset)
 {
     volatile uint32_t re_value=0;
     uint32_t *map_base, *virt_addr;
@@ -71,6 +72,8 @@ int register_handle(FILE *fp, uint32_t addr, uint16_t sample_rate, uint16_t node
     if(recapture_flag == 1)
     {
         virt_addr = map_base + SIGNAL_CAPTURE_RE + offset;
+        *(volatile uint32_t *)virt_addr = 0;
+        usleep(1);
         *(volatile uint32_t *)virt_addr = 1;
     }
 
@@ -81,14 +84,16 @@ int register_handle(FILE *fp, uint32_t addr, uint16_t sample_rate, uint16_t node
     printf("wait..\n");
     while(*(map_base + SIGNAL_CAPTURE_BUSY + offset))
     {
-        sleep(0.1);
+        sleep(1);
     }
 
     virt_addr=map_base + SIGNAL_CAPTURE_ADDR + offset;
-    for(i = 0; i <= 32767; i++)
+    *(volatile uint32_t *)virt_addr = total;
+
+    for(i = 0; i <= total; i++)
     {
         *(volatile uint32_t *)virt_addr = i;
-        usleep(0.1);
+        memset(data_total, 0, 36);
 
         re_value=*(map_base + SIGNAL_CAPTURE_DATAOUT + offset);
         sprintf(data_total,"%08X\n",re_value);
@@ -113,6 +118,7 @@ int main(int argc, char *argv[])
 
     char *input_str = NULL;
     uint32_t base_addr = 0;
+    uint32_t total = 0;
     uint16_t sample_rate = 0;
     uint16_t node = 0;
     int recapture_flag = 0;
@@ -120,13 +126,14 @@ int main(int argc, char *argv[])
 
     FILE *fp = NULL;
 
-    const char *const short_options = "b:s:r:n:";
+    const char *const short_options = "b:s:r:n:t:";
     const struct option long_options[] = {
         {"help", 0, NULL, 'h'},
         {"base", 1, NULL, 'b'},
         {"rate", 1, NULL, 's'},
         {"recapture", 1, NULL, 'r'},
         {"node", 1, NULL, 'n'},
+        {"total", 1, NULL, 't'},
         {NULL, 0, NULL, 0}};
 
     while (1)
@@ -153,15 +160,21 @@ int main(int argc, char *argv[])
             input_flag++;
             break;
         case 'r':
-            if(strcmp("True",optarg)==0)
+            if(strcmp("T",optarg)==0)
                 recapture_flag=SIGNAL_CAPTURE_EN;
-            else if(strcmp("False",optarg)==0)
+            else if(strcmp("F",optarg)==0)
                 recapture_flag=0;
             else
                 print_usage(stdout,ERROR_INPUT);
             break;
         case 'n':
             node = strtol(optarg,&input_str,10);
+            if(strlen(input_str) != 0)
+                print_usage(stdout,ERROR_INPUT);
+            input_flag++;
+            break;
+        case 't':
+            total = strtol(optarg,&input_str,10);
             if(strlen(input_str) != 0)
                 print_usage(stdout,ERROR_INPUT);
             input_flag++;
@@ -178,16 +191,16 @@ int main(int argc, char *argv[])
     }
 
     //open record the file
-    fp = fopen(file_name, "a+");
+    fp = fopen(file_name, "w");
     if (fp == NULL)
     {
         printf("Error %s file open fail!\n",file_name);
         exit(ERROR_OPEN_DEV);
     }
 
-    if(input_flag == 3)
+    if(input_flag == 4)
     {
-        register_handle(fp,base_addr,sample_rate,node,recapture_flag,(base_addr&0x00000fff)/4);
+        register_handle(fp,base_addr,sample_rate,node,total,recapture_flag,(base_addr&0x00000fff)/4);
     }
     else
     {
