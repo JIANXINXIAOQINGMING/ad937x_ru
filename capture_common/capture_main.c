@@ -15,10 +15,10 @@
 #define SIGNAL_CAPTURE_EN           1
 #define SIGNAL_CAPTURE_SET          2
 
-#define SIGNAL_CAPTURE_RATE         0x0
-#define SIGNAL_CAPTURE_RE           0x1
-#define SIGNAL_CAPTURE_BUSY         0x2
-#define SIGNAL_CAPTURE_SELECT       0x3
+#define SIGNAL_CAPTURE_RE           0x0
+#define SIGNAL_CAPTURE_BUSY         0x1
+#define SIGNAL_CAPTURE_SELECT       0x2
+#define SIGNAL_CAPTURE_RATE         0x3
 #define SIGNAL_CAPTURE_ADDR         0x4
 #define SIGNAL_CAPTURE_DATAOUT      0x5
 
