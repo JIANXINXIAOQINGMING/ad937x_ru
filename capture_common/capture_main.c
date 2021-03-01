@@ -6,12 +6,14 @@
 #include <unistd.h>
 #include <sys/mman.h>
 #include <getopt.h>
-
+#include "cJSON.h"
 #include "common_interface.h"
+#include "capture_common.h"
 
-#define CAP_VERSION                 2.4
+#define CAP_VERSION                 2.5
 
 #define SIGNAL_CAPTURE_EN           1
+#define SIGNAL_CAPTURE_SET          2
 
 #define SIGNAL_CAPTURE_RATE         0x0
 #define SIGNAL_CAPTURE_RE           0x1
@@ -28,11 +30,14 @@ static void print_usage(FILE *stream, int exit_code)
     fprintf(stream,
             "\t-h  --help            Display this usage information\n"
             "\t-b  --base addr       input base address\n"
-            "\t-r  --recapture       recapture enable T or F\n"
+            "\t-r  --recapture       recapture enable and only set mode\n"
+            "\t                      1.T:recapture enable\n"
+            "\t                      2.F:recapture disable\n"
+            "\t                      3.S:set capture range\n"
             "\t-s  --sample rate     sample rate\n"
             "\t-n  --node            port name\n"
             "\t-t  --total           capture total number\n"
-            "Example:rau_capture -b xxx -r xx -s xxx -n xxx -t xx\n");
+            "Example:capture -b xxx -r xx -s xxx -n xxx -t xx\n");
     exit(exit_code);
 }
 
@@ -65,40 +70,45 @@ int register_handle(FILE *fp, uint32_t addr, uint16_t sample_rate, uint16_t node
         exit(ERROR_OPEN_DEV);
     }
 
+
     virt_addr = map_base + SIGNAL_CAPTURE_RATE + offset;
     *(volatile uint32_t *)virt_addr = sample_rate;
 
     //recapture data
-    if(recapture_flag == 1)
+    if(recapture_flag == SIGNAL_CAPTURE_EN)
     {
         virt_addr = map_base + SIGNAL_CAPTURE_RE + offset;
         *(volatile uint32_t *)virt_addr = 0;
         usleep(1);
         *(volatile uint32_t *)virt_addr = 1;
     }
+    printf("Setting parameters is complete\n");
 
     //choice capture port
     virt_addr = map_base + SIGNAL_CAPTURE_SELECT + offset;
     *(volatile uint32_t *)virt_addr = node;
 
-    printf("wait..\n");
-    while(*(map_base + SIGNAL_CAPTURE_BUSY + offset))
+    if(recapture_flag != SIGNAL_CAPTURE_SET)
     {
-        sleep(1);
-    }
+        printf("wait..\n");
+        while(*(map_base + SIGNAL_CAPTURE_BUSY + offset))
+        {
+            sleep(1);
+        }
 
-    virt_addr=map_base + SIGNAL_CAPTURE_ADDR + offset;
-    *(volatile uint32_t *)virt_addr = total;
+        virt_addr=map_base + SIGNAL_CAPTURE_ADDR + offset;
+        *(volatile uint32_t *)virt_addr = total;
 
-    for(i = 0; i <= total; i++)
-    {
-        *(volatile uint32_t *)virt_addr = i;
-        memset(data_total, 0, 36);
+        for(i = 0; i <= total; i++)
+        {
+            *(volatile uint32_t *)virt_addr = i;
+            memset(data_total, 0, 36);
 
-        re_value=*(map_base + SIGNAL_CAPTURE_DATAOUT + offset);
-        sprintf(data_total,"%08X\n",re_value);
+            re_value=*(map_base + SIGNAL_CAPTURE_DATAOUT + offset);
+            sprintf(data_total,"%08X\n",re_value);
 
-        fputs(data_total,fp);
+            fputs(data_total,fp);
+        }
     }
 
     /* 删除分配的虚拟地址 */
@@ -162,6 +172,8 @@ int main(int argc, char *argv[])
         case 'r':
             if(strcmp("T",optarg)==0)
                 recapture_flag=SIGNAL_CAPTURE_EN;
+            else if(strcmp("S",optarg)==0)
+                recapture_flag=SIGNAL_CAPTURE_SET;
             else if(strcmp("F",optarg)==0)
                 recapture_flag=0;
             else
@@ -190,26 +202,26 @@ int main(int argc, char *argv[])
         remove(file_name);
     }
 
-    //open record the file
-    fp = fopen(file_name, "w");
-    if (fp == NULL)
+    if(input_flag == 4 || (recapture_flag == SIGNAL_CAPTURE_SET && input_flag == 3 && total == 0))
     {
-        printf("Error %s file open fail!\n",file_name);
-        exit(ERROR_OPEN_DEV);
-    }
+        //open record the file
+        fp = fopen(file_name, "w");
+        if (fp == NULL)
+        {
+            printf("Error %s file open fail!\n",file_name);
+            exit(ERROR_OPEN_DEV);
+        }
 
-    if(input_flag == 4)
-    {
         register_handle(fp,base_addr,sample_rate,node,total,recapture_flag,(base_addr&0x00000fff)/4);
+
+        sprintf(ver_info,"Capture_Signal  base address:%#x  Sample rate:%d  Node:%d  total:%d  Recapture enable:%s  Capture version: %02.02f\n",base_addr,sample_rate,node,total,RE_ENABLE_STATUS(recapture_flag),CAP_VERSION);
+        fputs(ver_info,fp);
+        fclose(fp);
     }
     else
     {
         print_usage(stdout,ERROR_INPUT);
     }
-
-    sprintf(ver_info,"Capture_Signal  base address:%#x  Sample rate:%d  Node:%d  Recapture enable:%s  Capture version: %02.02f\n",base_addr,sample_rate,node,RE_ENABLE_STATUS(recapture_flag),CAP_VERSION);
-    fputs(ver_info,fp);
-    fclose(fp);
 
     fp = NULL;
     input_str = NULL;
