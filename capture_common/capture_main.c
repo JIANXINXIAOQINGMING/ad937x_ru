@@ -18,9 +18,9 @@ static void print_usage(FILE *stream, int exit_code)
     fprintf(stream,
             "\t-h  --help            Display this usage information\n"
             "\t-b  --base addr       input base address\n"
-            "\t-r  --recapture       recapture\n"
-            "\t-c  --capture         only read\n"
-            "\t-s  --sample rate     sample rate\n"
+            "\t-r  --read            only read\n"
+            "\t-c  --capture         capture\n"
+            "\t-s  --sample rate     sample rate -1\n"
             "\t-n  --node            port name\n"
             "\t-t  --total           capture total number\n");
     exit(exit_code);
@@ -61,6 +61,8 @@ int register_handle(char *file_name, uint32_t addr, uint16_t sample_rate, uint16
     {
         virt_addr = map_base + SIGNAL_CAPTURE_RATE + offset;
         *(volatile uint32_t *)virt_addr = sample_rate;
+
+        printf("Setting sample rate is complete\n");
     }
 
     if(SELECT_BIT_DECIDE(recapture_flag))
@@ -68,6 +70,8 @@ int register_handle(char *file_name, uint32_t addr, uint16_t sample_rate, uint16
         //choice capture port
         virt_addr = map_base + SIGNAL_CAPTURE_SELECT + offset;
         *(volatile uint32_t *)virt_addr = node;
+
+        printf("Setting node is complete\n");
     }
 
     //recapture data
@@ -77,27 +81,43 @@ int register_handle(char *file_name, uint32_t addr, uint16_t sample_rate, uint16
         *(volatile uint32_t *)virt_addr = 0;
         usleep(1);
         *(volatile uint32_t *)virt_addr = 1;
+
+        printf("Setting recapture is complete\n");
     }
-    printf("Setting parameters is complete\n");
+
+    if(TOTAL_BIT_DECIDE(recapture_flag))
+    {
+        virt_addr=map_base + SIGNAL_CAPTURE_ADDR + offset;
+        *(volatile uint32_t *)virt_addr = total;
+
+        printf("Setting total is complete\n");
+    }
 
     if(RE_BIT_DECIDE(recapture_flag) || ONLY_READ_BIT_DECIDE(recapture_flag))
     {
-        printf("wait..\n");
+        if(total == 0)
+        {
+            total = *(map_base + SIGNAL_CAPTURE_ADDR + offset);
+            if(total == 0)
+            {
+                return ERROR_INPUT;
+            }
+        }
+
+        printf("wait busy..\n");
         while(*(map_base + SIGNAL_CAPTURE_BUSY + offset))
         {
             sleep(1);
         }
 
         //open record the file
+        creat(file_name,0766);
         fp = fopen(file_name, "w");
         if (fp == NULL)
         {
             printf("Error %s file open fail!\n",file_name);
             exit(ERROR_OPEN_DEV);
         }
-
-        virt_addr=map_base + SIGNAL_CAPTURE_ADDR + offset;
-        *(volatile uint32_t *)virt_addr = total;
 
         for(i = 0; i <= total; i++)
         {
@@ -109,15 +129,14 @@ int register_handle(char *file_name, uint32_t addr, uint16_t sample_rate, uint16
 
             fputs(data_total,fp);
         }
-    }
 
+        fclose(fp);
+    }
     /* 删除分配的虚拟地址 */
     if (munmap(map_base, DEVMEM_MAP_SIZE) == -1)
         printf("Delete DEVMEM FAIL DEVMEM_MAP_SIZE\n");
 
     close(fd);
-    fclose(fp);
-
     return RETURN_SUCCESSFUL;
 }
 
@@ -133,9 +152,8 @@ int main(int argc, char *argv[])
     uint16_t sample_rate = 0;
     uint16_t node = 0;
     uint8_t recapture_flag = 0;         //0:recapture  1:total  2: node  3: rate  4:capture
-    short input_flag = 0;
 
-    const char *const short_options = "b:s:crn:t:";
+    const char *const short_options = "crb:s:n:t:";
     const struct option long_options[] = {
         {"help", 0, NULL, 'h'},
         {"base", 1, NULL, 'b'},
@@ -158,12 +176,12 @@ int main(int argc, char *argv[])
         switch (next_option)
         {
         case 'b':
-            base_addr = strtol(optarg,&input_str,16);
+            base_addr = strtoul(optarg,&input_str,16);
             if(strlen(input_str) != 0)
                 print_usage(stdout,ERROR_INPUT);
             break;
         case 's':
-            sample_rate = strtol(optarg,&input_str,10);
+            sample_rate = strtoul(optarg,&input_str,10);
             if(strlen(input_str) != 0 || sample_rate > 255)
                 print_usage(stdout,ERROR_INPUT);
             recapture_flag = RATE_BIT_COMPUTE(recapture_flag);
@@ -181,13 +199,13 @@ int main(int argc, char *argv[])
                 print_usage(stdout,ERROR_INPUT);
             break;
         case 'n':
-            node = strtol(optarg,&input_str,10);
+            node = strtoul(optarg,&input_str,10);
             if(strlen(input_str) != 0)
                 print_usage(stdout,ERROR_INPUT);
             recapture_flag = SELECT_BIT_COMPUTE(recapture_flag);
             break;
         case 't':
-            total = strtol(optarg,&input_str,10) - 1;
+            total = strtoul(optarg,&input_str,10) - 1;
             if(strlen(input_str) != 0)
                 print_usage(stdout,ERROR_INPUT);
             recapture_flag = TOTAL_BIT_COMPUTE(recapture_flag);
@@ -197,7 +215,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    sprintf(file_name,"/tmp/Capture_Signal_%X",base_addr&0x0000ffff);
+    sprintf(file_name,"/tmp/Capture_Signal_%X.txt",base_addr&0x0000ffff);
     if(access(file_name,F_OK))
     {
         remove(file_name);
@@ -206,6 +224,5 @@ int main(int argc, char *argv[])
     register_handle(file_name,base_addr,sample_rate,node,total,recapture_flag,(base_addr&0x00000fff)/4);
 
     input_str = NULL;
-
     return RETURN_SUCCESSFUL;
 }

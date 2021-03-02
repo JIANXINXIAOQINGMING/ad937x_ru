@@ -26,7 +26,7 @@ extern "C"
 #define RATE_BIT_COMPUTE(x)                         BIT_COMPUTE(x,CAPTURE_RATE_BIT)
 #define ONLY_READ_BIT_COMPUTE(x)                    BIT_COMPUTE(x,ONLY_READ_BIT)
 
-#define BIT_DECIDE(x,y)                             x & y
+#define BIT_DECIDE(x,y)                             (x & y)!=0
 #define RE_BIT_DECIDE(x)                            BIT_DECIDE(x,CAPTURE_RE_BIT)
 #define TOTAL_BIT_DECIDE(x)                         BIT_DECIDE(x,CAPTURE_TOTAL_BIT)
 #define SELECT_BIT_DECIDE(x)                        BIT_DECIDE(x,CAPTURE_SELECT_BIT)
