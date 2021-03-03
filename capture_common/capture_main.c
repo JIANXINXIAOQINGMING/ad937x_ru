@@ -6,7 +6,6 @@
 #include <unistd.h>
 #include <sys/mman.h>
 #include <getopt.h>
-#include "cJSON.h"
 #include "common_interface.h"
 #include "capture_common.h"
 
@@ -119,6 +118,7 @@ int register_handle(char *file_name, uint32_t addr, uint16_t sample_rate, uint16
             exit(ERROR_OPEN_DEV);
         }
 
+        virt_addr=map_base + SIGNAL_CAPTURE_ADDR + offset;
         for(i = 0; i <= total; i++)
         {
             *(volatile uint32_t *)virt_addr = i;

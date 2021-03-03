@@ -33,9 +33,6 @@ extern "C"
 #define RATE_BIT_DECIDE(x)                          BIT_DECIDE(x,CAPTURE_RATE_BIT)
 #define ONLY_READ_BIT_DECIDE(x)                     BIT_DECIDE(x,ONLY_READ_BIT)
 
-int json_read(void);
-int setJson(cJSON *root);
-
 #ifdef __cplusplus
 }
 #endif
