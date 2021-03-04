@@ -80,6 +80,8 @@ int register_handle(char *file_name, uint32_t addr, uint16_t sample_rate, uint16
         *(volatile uint32_t *)virt_addr = 0;
         usleep(1);
         *(volatile uint32_t *)virt_addr = 1;
+        usleep(1);
+        *(volatile uint32_t *)virt_addr = 0;
 
         printf("Setting recapture is complete\n");
     }
